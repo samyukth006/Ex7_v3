@@ -1,0 +1,496 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<title>AR Cognitive Science — Memory & Attention Experiment</title>
+<meta name="description" content="An augmented reality cognitive science experiment measuring visual memory, spatial memory, attention and reaction time.">
+<meta name="theme-color" content="#101820">
+<style>
+:root{
+  --bg:#0b1118;--panel:#121a24ee;--ink:#f5f7fa;--dim:#b8c1cc;
+  --accent:#68d391;--blue:#63b3ed;--danger:#f56565;--border:#ffffff20;
+  --safe-t:env(safe-area-inset-top,0px);--safe-b:env(safe-area-inset-bottom,0px)
+}
+*{box-sizing:border-box}
+html,body{margin:0;width:100%;height:100%;overflow:hidden;background:var(--bg);color:var(--ink);
+font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif}
+body{padding-top:var(--safe-t);padding-bottom:var(--safe-b)}
+canvas{display:block;touch-action:none}
+#canvas-wrap{position:fixed;inset:0}
+#top{position:fixed;z-index:10;left:0;right:0;top:0;padding:calc(14px + var(--safe-t)) 18px 20px;
+pointer-events:none;background:linear-gradient(#000b,transparent)}
+#top h1{margin:0 0 4px;font-size:clamp(18px,4.8vw,24px);font-weight:650}
+#top p{margin:0;font-size:12.5px;color:var(--dim)}
+#status{position:fixed;z-index:15;top:calc(78px + var(--safe-t));left:50%;
+transform:translateX(-50%);background:#080c12dd;border:1px solid var(--border);padding:9px 15px;
+border-radius:20px;font-size:12.5px;text-align:center;max-width:90%;display:none}
+#status.show{display:block}
+#hud{position:fixed;z-index:16;top:calc(118px + var(--safe-t));left:50%;transform:translateX(-50%);
+display:none;background:#101722e8;border:1px solid var(--border);border-radius:14px;padding:8px 12px;
+font-size:12px;white-space:nowrap}
+#hud.show{display:block}
+#timer{font-weight:700;color:var(--accent)}
+#controls{position:fixed;z-index:20;bottom:calc(15px + var(--safe-b));left:50%;
+transform:translateX(-50%);display:flex;gap:7px;flex-wrap:wrap;justify-content:center;width:96%;max-width:680px}
+button{border:0;border-radius:12px;padding:11px 14px;font-size:13px;font-weight:650;
+background:var(--ink);color:#10151b;box-shadow:0 3px 14px #0009;cursor:pointer}
+button:active{transform:scale(.96)}
+button:disabled{opacity:.45}
+button.primary{background:var(--accent)}
+button.secondary{background:var(--blue)}
+button.danger{background:var(--danger);color:#fff}
+#panel,#quiz,#result,#instructions{display:none;position:fixed;z-index:30;left:5%;right:5%;
+top:50%;transform:translateY(-50%);max-height:78vh;overflow:auto;background:var(--panel);
+border:1px solid var(--border);padding:22px;border-radius:20px;backdrop-filter:blur(12px);
+box-shadow:0 12px 50px #0009}
+#panel.show,#quiz.show,#result.show,#instructions.show{display:block}
+h2{margin:0 0 10px;font-size:21px}
+p{line-height:1.5;color:var(--dim);font-size:14px}
+.close{float:right;padding:6px 10px;font-size:12px}
+.levels{display:grid;grid-template-columns:1fr;gap:9px;margin-top:15px}
+.level{border:1px solid var(--border);padding:13px;border-radius:13px}
+.level b{display:block;margin-bottom:4px}
+.level span{font-size:12px;color:var(--dim)}
+#countdown{text-align:center;font-size:64px;font-weight:800;margin:12px 0;color:var(--accent)}
+.quizChoices{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:16px}
+.choice{padding:18px 10px;border-radius:14px;border:2px solid #ffffff20;background:#ffffff0d;
+font-size:15px;text-align:center}
+.choice.correct{border-color:var(--accent);background:#68d39122}
+.choice.wrong{border-color:var(--danger);background:#f5656522}
+.scoreGrid{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin:15px 0}
+.stat{background:#ffffff09;border:1px solid var(--border);border-radius:12px;padding:12px}
+.stat b{display:block;font-size:20px;margin-top:3px}
+.small{font-size:11px;color:var(--dim)}
+#err{display:none;position:fixed;inset:0;z-index:50;background:#0b1118f5;
+align-items:center;justify-content:center;text-align:center;padding:24px}
+#err.show{display:flex}
+#err div{max-width:430px}
+@media(min-width:650px){.levels{grid-template-columns:repeat(3,1fr)}}
+</style>
+</head>
+<body>
+
+<div id="canvas-wrap"></div>
+
+<div id="top">
+  <h1>🧠 AR Cognitive Science Lab</h1>
+  <p>Memory • Spatial Recall • Attention • Reaction Time</p>
+</div>
+
+<div id="status"></div>
+<div id="hud">
+  <span id="phase">Ready</span> &nbsp;•&nbsp;
+  <span id="progress">0 / 3</span> &nbsp;•&nbsp;
+  Time: <span id="timer">0.0s</span>
+</div>
+
+<div id="instructions" class="show">
+  <button class="close" onclick="closeInstructions()">✕</button>
+  <h2>🧠 AR Memory & Attention Experiment</h2>
+  <p>
+    This activity tests visual memory, spatial memory and attention using objects placed
+    in your real environment.
+  </p>
+  <div class="levels">
+    <div class="level"><b>1. Visual Memory</b><span>Remember the objects, colors and shapes.</span></div>
+    <div class="level"><b>2. Spatial Memory</b><span>Remember where the objects appeared.</span></div>
+    <div class="level"><b>3. Attention</b><span>Identify the target object as quickly as possible.</span></div>
+  </div>
+  <p><b>How to play:</b> Start AR → scan a table/floor → tap the detected surface → memorize the
+  objects → answer the questions.</p>
+  <button class="primary" style="width:100%" onclick="closeInstructions()">Start Experiment</button>
+</div>
+
+<div id="panel">
+  <button class="close" onclick="hidePanel()">✕</button>
+  <h2>Experiment Controls</h2>
+  <p id="panelText">Start AR and place the experiment on a flat surface.</p>
+  <button id="arBtn" class="primary" style="width:100%">📱 Start AR</button>
+  <button id="startBtn" class="secondary" style="width:100%;margin-top:8px" disabled>
+    🧠 Begin Cognitive Test
+  </button>
+  <button style="width:100%;margin-top:8px" onclick="showInstructions()">📘 Instructions</button>
+  <button style="width:100%;margin-top:8px" onclick="resetExperiment()">↺ Reset Experiment</button>
+</div>
+
+<div id="quiz">
+  <div class="small" id="quizLevel">LEVEL</div>
+  <h2 id="quizTitle">Question</h2>
+  <p id="quizQuestion"></p>
+  <div id="quizChoices" class="quizChoices"></div>
+</div>
+
+<div id="result">
+  <h2>🧠 Experiment Complete</h2>
+  <p>Your performance across the cognitive tasks:</p>
+  <div class="scoreGrid">
+    <div class="stat">Memory Accuracy<b id="memoryScore">0%</b></div>
+    <div class="stat">Spatial Recall<b id="spatialScore">0%</b></div>
+    <div class="stat">Attention<b id="attentionScore">0%</b></div>
+    <div class="stat">Reaction Time<b id="reactionScore">0.0s</b></div>
+  </div>
+  <div class="stat"><span class="small">Overall performance</span><b id="overallScore">0%</b></div>
+  <p id="resultText"></p>
+  <button class="primary" style="width:100%" onclick="resetExperiment()">Try Again</button>
+</div>
+
+<div id="controls">
+  <button id="menuBtn">🧠 Activity</button>
+  <button id="resetBtn">↺ Reset</button>
+</div>
+
+<div id="err"><div><h2>Couldn't start 3D view</h2><p id="errMsg"></p></div></div>
+
+<script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
+<script>
+"use strict";
+
+let scene,camera,renderer,reticle,experimentGroup;
+let xrSession=null,hitTestSource=null,hitTestSourceRequested=false,xrRefSpace=null;
+let placed=false,activityRunning=false,objectsVisible=false;
+let currentQuestion=0,quizStart=0,reactionTimes=[];
+let memoryCorrect=0,spatialCorrect=0,attentionCorrect=0;
+let currentLevel=0;
+const CLOCK=new THREE.Clock();
+
+const COLORS={
+  red:0xf56565, blue:0x63b3ed, green:0x68d391,
+  yellow:0xf6e05e, purple:0xb794f4
+};
+
+const objectData=[
+  {name:"Red Cube",color:"red",type:"cube",position:[-1.45,0.42,0.75]},
+  {name:"Blue Sphere",color:"blue",type:"sphere",position:[1.25,0.48,0.55]},
+  {name:"Green Cylinder",color:"green",type:"cylinder",position:[-0.85,0.55,-0.65]},
+  {name:"Yellow Pyramid",color:"yellow",type:"pyramid",position:[0.85,0.50,-0.75]},
+  {name:"Purple Cone",color:"purple",type:"cone",position:[0,0.55,0]}
+];
+
+const questions=[
+  {level:1,type:"memory",q:"Which object was red?",choices:["Red Cube","Blue Sphere","Green Cylinder","Yellow Pyramid"],answer:0},
+  {level:1,type:"memory",q:"Which shape was blue?",choices:["Cube","Sphere","Cylinder","Cone"],answer:1},
+  {level:2,type:"spatial",q:"Which object was closest to the center?",choices:["Red Cube","Purple Cone","Green Cylinder","Yellow Pyramid"],answer:1},
+  {level:2,type:"spatial",q:"Which object was in the front-left area?",choices:["Red Cube","Blue Sphere","Purple Cone","Yellow Pyramid"],answer:0},
+  {level:3,type:"attention",q:"Find the object that is GREEN.",choices:["Red Cube","Green Cylinder","Blue Sphere","Purple Cone"],answer:1},
+  {level:3,type:"attention",q:"Find the object that is YELLOW.",choices:["Purple Cone","Red Cube","Yellow Pyramid","Blue Sphere"],answer:2}
+];
+
+function $(id){return document.getElementById(id)}
+function showStatus(msg){
+  $("status").textContent=msg;
+  $("status").classList.toggle("show",!!msg);
+}
+function showFatal(msg){$("errMsg").textContent=msg;$("err").classList.add("show")}
+function showInstructions(){$("instructions").classList.add("show")}
+function closeInstructions(){$("instructions").classList.remove("show")}
+function showPanel(){$("panel").style.display="block"}
+function hidePanel(){$("panel").style.display="none"}
+
+function makeMaterial(color){
+  return new THREE.MeshStandardMaterial({color:COLORS[color],roughness:.48,metalness:.08});
+}
+
+function makeObject(d){
+  let geometry;
+  if(d.type==="cube") geometry=new THREE.BoxGeometry(.72,.72,.72);
+  if(d.type==="sphere") geometry=new THREE.SphereGeometry(.46,32,20);
+  if(d.type==="cylinder") geometry=new THREE.CylinderGeometry(.42,.42,.9,32);
+  if(d.type==="cone") geometry=new THREE.ConeGeometry(.48,.95,32);
+  if(d.type==="pyramid") geometry=new THREE.ConeGeometry(.52,.95,4);
+  const mesh=new THREE.Mesh(geometry,makeMaterial(d.color));
+  mesh.position.set(...d.position);
+  mesh.userData=d;
+  return mesh;
+}
+
+function createExperiment(){
+  const g=new THREE.Group();
+  const base=new THREE.Mesh(
+    new THREE.CylinderGeometry(2.35,.2,.10,64),
+    new THREE.MeshStandardMaterial({color:0x334155,roughness:.8})
+  );
+  base.position.y=.05;
+  g.add(base);
+
+  objectData.forEach(d=>g.add(makeObject(d)));
+
+  const centerRing=new THREE.Mesh(
+    new THREE.RingGeometry(.17,.21,32),
+    new THREE.MeshBasicMaterial({color:0xffffff,side:THREE.DoubleSide})
+  );
+  centerRing.rotation.x=-Math.PI/2;centerRing.position.y=.12;
+  g.add(centerRing);
+  return g;
+}
+
+function createReticle(){
+  const ring=new THREE.Mesh(
+    new THREE.RingGeometry(.12,.16,32).rotateX(-Math.PI/2),
+    new THREE.MeshBasicMaterial({color:0x68d391,side:THREE.DoubleSide})
+  );
+  ring.visible=false;
+  return ring;
+}
+
+function init(){
+  if(!THREE){showFatal("Three.js failed to load. Check your internet connection.");return false}
+  scene=new THREE.Scene();
+  scene.background=new THREE.Color(0x9fb8c8);
+  camera=new THREE.PerspectiveCamera(55,innerWidth/innerHeight,.01,100);
+  camera.position.set(6,4.5,7);camera.lookAt(0,1,0);
+
+  try{
+    renderer=new THREE.WebGLRenderer({antialias:true,alpha:true,powerPreference:"high-performance"});
+  }catch(e){showFatal("WebGL is not available on this device.");return false}
+
+  renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+  renderer.setSize(innerWidth,innerHeight);
+  renderer.outputColorSpace=THREE.SRGBColorSpace;
+  renderer.xr.enabled=true;
+  $("canvas-wrap").appendChild(renderer.domElement);
+
+  scene.add(new THREE.HemisphereLight(0xffffff,0x59636e,2.0));
+  const sun=new THREE.DirectionalLight(0xffffff,2.4);sun.position.set(4,8,5);scene.add(sun);
+
+  experimentGroup=createExperiment();
+  experimentGroup.visible=true;
+  scene.add(experimentGroup);
+
+  reticle=createReticle();scene.add(reticle);
+
+  renderer.setAnimationLoop((time,frame)=>{
+    if(frame)handleARFrame(frame);
+    renderer.render(scene,camera);
+  });
+
+  bind();
+  showStatus("3D preview ready. Start AR to place the experiment.");
+  return true;
+}
+
+async function startAR(){
+  if(xrSession){await xrSession.end();return}
+  if(!navigator.xr){showStatus("AR is unavailable here. Use Chrome on a compatible Android phone.");return}
+  if(!window.isSecureContext){showStatus("AR requires HTTPS. GitHub Pages provides this.");return}
+
+  try{
+    if(!await navigator.xr.isSessionSupported("immersive-ar")){
+      showStatus("This device/browser does not support WebXR immersive AR.");
+      return;
+    }
+
+    xrSession=await navigator.xr.requestSession("immersive-ar",{
+      requiredFeatures:["hit-test"],
+      optionalFeatures:["dom-overlay"],
+      domOverlay:{root:document.body}
+    });
+
+    renderer.xr.setReferenceSpaceType("local");
+    await renderer.xr.setSession(xrSession);
+
+    placed=false;
+    experimentGroup.visible=false;
+    reticle.visible=false;
+    $("arBtn").textContent="⏹ Stop AR";
+    showStatus("Move the phone slowly until a surface is detected.");
+
+    xrSession.addEventListener("end",onXRSessionEnd);
+    xrSession.addEventListener("select",onXRSelect);
+  }catch(e){
+    showStatus("AR could not start: "+(e.message||"unknown error"));
+  }
+}
+
+function onXRSessionEnd(){
+  xrSession=null;hitTestSource=null;hitTestSourceRequested=false;xrRefSpace=null;
+  placed=false;reticle.visible=false;experimentGroup.visible=true;
+  $("arBtn").textContent="📱 Start AR";
+  showStatus("AR ended. You can use the 3D preview or start AR again.");
+}
+
+function onXRSelect(){
+  if(!placed && reticle.visible){
+    experimentGroup.position.copy(reticle.position);
+    experimentGroup.visible=true;
+    placed=true;
+    reticle.visible=false;
+    $("startBtn").disabled=false;
+    $("panelText").textContent="Surface placed. You can now begin the cognitive experiment.";
+    showStatus("Experiment placed. Open Activity and tap Begin Cognitive Test.");
+  }
+}
+
+function handleARFrame(frame){
+  if(!xrSession)return;
+  xrRefSpace=renderer.xr.getReferenceSpace();
+
+  if(!hitTestSourceRequested){
+    hitTestSourceRequested=true;
+    xrSession.requestReferenceSpace("viewer").then(v=>{
+      xrSession.requestHitTestSource({space:v}).then(s=>hitTestSource=s);
+    }).catch(()=>showStatus("Surface hit-testing is unavailable."));
+  }
+
+  if(hitTestSource && !placed){
+    const hits=frame.getHitTestResults(hitTestSource);
+    if(hits.length){
+      const pose=hits[0].getPose(xrRefSpace);
+      if(pose){
+        reticle.visible=true;
+        reticle.position.set(pose.transform.position.x,pose.transform.position.y,pose.transform.position.z);
+        showStatus("Surface found — tap the screen to place the experiment.");
+      }
+    }else reticle.visible=false;
+  }
+}
+
+function setObjectsVisible(v){
+  objectsVisible=v;
+  experimentGroup.children.forEach((o,i)=>{
+    if(i===0||i===6)o.visible=true;
+    else o.visible=v;
+  });
+}
+
+function resetObjects(){
+  experimentGroup.rotation.set(0,0,0);
+  experimentGroup.scale.setScalar(1);
+  setObjectsVisible(true);
+}
+
+function beginExperiment(){
+  if(!placed && xrSession){
+    showStatus("Place the experiment on a detected surface first.");
+    return;
+  }
+  activityRunning=true;
+  currentQuestion=0;memoryCorrect=0;spatialCorrect=0;attentionCorrect=0;
+  reactionTimes=[];
+  resetObjects();
+  $("hud").classList.add("show");
+  $("progress").textContent="Memorize";
+  $("phase").textContent="Memory";
+  hidePanel();
+  startMemorization();
+}
+
+function startMemorization(){
+  setObjectsVisible(true);
+  $("phase").textContent="MEMORIZE";
+  $("progress").textContent="Remember 5 objects";
+  let remaining=5;
+  showStatus("Memorize the objects and their positions.");
+  $("timer").textContent=remaining+"s";
+  const interval=setInterval(()=>{
+    remaining--;
+    $("timer").textContent=remaining+"s";
+    if(remaining<=0){
+      clearInterval(interval);
+      setObjectsVisible(false);
+      showStatus("Objects hidden. Now answer the questions.");
+      setTimeout(showNextQuestion,700);
+    }
+  },1000);
+}
+
+function showNextQuestion(){
+  if(currentQuestion>=questions.length){finishExperiment();return}
+  const q=questions[currentQuestion];
+  currentLevel=q.level;
+  $("quizLevel").textContent="LEVEL "+q.level+" • "+
+    (q.type==="memory"?"VISUAL MEMORY":q.type==="spatial"?"SPATIAL MEMORY":"ATTENTION");
+  $("quizTitle").textContent="Question "+(currentQuestion+1)+" of "+questions.length;
+  $("quizQuestion").textContent=q.q;
+  const box=$("quizChoices");box.innerHTML="";
+  q.choices.forEach((c,i)=>{
+    const b=document.createElement("button");
+    b.className="choice";b.textContent=c;
+    b.onclick=()=>answerQuestion(i,b);
+    box.appendChild(b);
+  });
+  $("quiz").classList.add("show");
+  $("phase").textContent=q.type.toUpperCase();
+  $("progress").textContent=(currentQuestion+1)+" / "+questions.length;
+  quizStart=performance.now();
+}
+
+function answerQuestion(index,button){
+  const q=questions[currentQuestion];
+  const elapsed=(performance.now()-quizStart)/1000;
+  reactionTimes.push(elapsed);
+
+  [...$("quizChoices").children].forEach(b=>b.disabled=true);
+  if(index===q.answer){
+    button.classList.add("correct");
+    if(q.type==="memory")memoryCorrect++;
+    if(q.type==="spatial")spatialCorrect++;
+    if(q.type==="attention")attentionCorrect++;
+  }else{
+    button.classList.add("wrong");
+    $("quizChoices").children[q.answer].classList.add("correct");
+  }
+
+  setTimeout(()=>{
+    $("quiz").classList.remove("show");
+    currentQuestion++;
+    setTimeout(showNextQuestion,350);
+  },750);
+}
+
+function finishExperiment(){
+  activityRunning=false;
+  $("hud").classList.remove("show");
+  const memoryPct=Math.round(memoryCorrect/2*100);
+  const spatialPct=Math.round(spatialCorrect/2*100);
+  const attentionPct=Math.round(attentionCorrect/2*100);
+  const avgReaction=reactionTimes.reduce((a,b)=>a+b,0)/reactionTimes.length;
+  const overall=Math.round((memoryPct+spatialPct+attentionPct)/3);
+
+  $("memoryScore").textContent=memoryPct+"%";
+  $("spatialScore").textContent=spatialPct+"%";
+  $("attentionScore").textContent=attentionPct+"%";
+  $("reactionScore").textContent=avgReaction.toFixed(2)+"s";
+  $("overallScore").textContent=overall+"%";
+
+  $("resultText").textContent=
+    "This activity demonstrates visual memory, spatial recall, selective attention and response-time measurement. "+
+    "The score is a simple classroom experiment measure and is not a clinical or psychological diagnosis.";
+
+  $("result").classList.add("show");
+  setObjectsVisible(true);
+}
+
+function resetExperiment(){
+  $("result").classList.remove("show");
+  $("quiz").classList.remove("show");
+  $("hud").classList.remove("show");
+  activityRunning=false;currentQuestion=0;
+  $("startBtn").disabled=!placed;
+  resetObjects();
+  if(xrSession){
+    placed=false;hitTestSource=null;hitTestSourceRequested=false;
+    experimentGroup.visible=false;
+    showStatus("Move the phone to find a surface again.");
+  }else{
+    experimentGroup.visible=true;
+    showStatus("3D preview reset. Start AR to place it in your environment.");
+  }
+}
+
+function bind(){
+  $("arBtn").onclick=startAR;
+  $("startBtn").onclick=beginExperiment;
+  $("menuBtn").onclick=showPanel;
+  $("resetBtn").onclick=resetExperiment;
+  window.addEventListener("resize",()=>{
+    camera.aspect=innerWidth/innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(innerWidth,innerHeight);
+  });
+}
+
+if(!init()){}
+</script>
+</body>
+</html>
